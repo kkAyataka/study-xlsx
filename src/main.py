@@ -24,8 +24,8 @@ def emus_to_pt(emus: int) -> int:
 class Relationship:
     """
     * §9.2
-    * *.rels (workbook.xml.rels) files
-    * Assign a rid to a target like a sheet or a image
+    * .xml.rels file's component
+    * Assign a rid to a target like a sheet or an image
     """
     @staticmethod
     def from_xml(el: xml.etree.ElementTree.Element):
@@ -46,6 +46,7 @@ class Relationship:
 class Relationships:
     """
     * §9.2
+    * *.xml.rels file (e.g. xl/_rels/workbook.xml.rels)
     """
     @staticmethod
     def from_archive(xlsx: zipfile.ZipFile, path: str):
@@ -78,8 +79,6 @@ class Relationships:
                 return i
         return None
 
-
-
 class AnchorPoint:
     """
     * §20.5.2.15 (from) or v20.5.2.32 (to)
@@ -90,10 +89,14 @@ class AnchorPoint:
         self.row = row
 
 class TwoCellAnchor:
+    """
+    * §20.5.2.33
+    * xl/drawings/drawing1.xml file's component
+    * An anchor (position) information for a group, a shape, or a drawing element
+    """
     @staticmethod
     def from_xml(el: xml.etree.ElementTree, rels: Relationships, file_path: str):
         dir_path = os.path.dirname(file_path)
-
         ns = {
             'xdr': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
             'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
@@ -135,6 +138,10 @@ class TwoCellAnchor:
         return f'from:{self.fromPt.col},{self.fromPt.row}, to:{self.toPt.col},{self.toPt.row}, embed:{self.embed}'
 
 class SpreadsheetDrawing:
+    """
+    * §20.5
+    * xl/drawings/drawing.xml
+    """
     @staticmethod
     def from_archive(xlsx: zipfile.ZipFile, path: str):
         dir_path = os.path.dirname(path)
@@ -158,6 +165,10 @@ class SpreadsheetDrawing:
         self.two_cell_anchors = two_cell_anchors
 
 class Sheet:
+    """
+    * $18.3
+    * xl/worksheets/sheet1.xml
+    """
     @staticmethod
     def from_archive(xlsx: zipfile.ZipFile, path: str, name: str, id: str):
         dir_path = os.path.dirname(path)
@@ -187,12 +198,14 @@ class Sheet:
         self.drawing = drawing
 
 class Workbook:
+    """
+    * $18.2
+    * xl/workbook.xml
+    """
     @staticmethod
     def parse(path: str):
         xlsx = zipfile.ZipFile(xlsx_path)
-
         workbook_xml_str = xlsx.read('xl/workbook.xml').decode()
-
         workbook_rels = Relationships.from_archive(xlsx, 'xl/_rels/workbook.xml.rels')
 
         ns = {
@@ -204,7 +217,7 @@ class Workbook:
         sheets = []
         for sheet_el in sheet_els:
             name = sheet_el.get('name')
-            id = sheet_el.get('sheetid')
+            id = sheet_el.get('sheetId')
             rid = sheet_el.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
             rel = workbook_rels.get(rid);
             sheets.append(Sheet.from_archive(xlsx, f'xl/{rel.target}', name, id))
@@ -216,13 +229,11 @@ class Workbook:
 
 # Load book
 xlsx_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '../data/Book1.xlsx'))
-xlsx = zipfile.ZipFile(xlsx_path)
 
-# Workbook
-print('\n# Workbook:\n')
+# Parse
 wb = Workbook.parse(xlsx_path)
 for sheet in wb.sheets:
-    print('Sheet:', sheet.name)
+    print(f'SheetId:{sheet.id}, name:{sheet.name}')
     if sheet.drawing != None:
         for anchor in sheet.drawing.two_cell_anchors:
-            print('  ', anchor.toPt.col, anchor.toPt.row, anchor.image_path)
+            print(f'  col:{anchor.toPt.col}, row:{anchor.toPt.row}, img:{anchor.image_path} ')
